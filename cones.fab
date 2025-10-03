@@ -4,7 +4,8 @@ fn load_level()
 
     // Upload 1024 bytes; all ones.
     for UU i = 0; i < 1024; i += 1
-        {PPUDATA}(1)
+        {PPUDATA}(i.a)
+        {PPUDATA}(i.b)
 
 mode main()
     // Set the palette:
@@ -21,4 +22,4 @@ mode main()
 
 // Define the tileset (commonly called CHR):
 chrrom
-    file(fmt, "tiles.png")
+    file(fmt, "assets/tileset.chr")
