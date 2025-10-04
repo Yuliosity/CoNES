@@ -4,7 +4,7 @@ ct U[25] game_palette = U[25](
     $00, $16, $27,
     $1c, $18, $29,
     $00, $10, $15,
-    // Grid
+    // Sprites
     $0c, $00, $00,
     $0f, $0f, $0f,
     $0f, $0f, $0f,
@@ -15,13 +15,16 @@ ct U[25] game_palette = U[25](
 vars /level
     U[216] map
 
-
 vars /player
     U player_x = 2
     U player_y = 2
     U player_z = 2
     U player_hp = 10
 
+//Gethe the NW tile of a cell.         
+//They are organized in 2x2 metatiles, so the rest are:
+//      x NW NE x + 1
+//x + $10 SW SE x + $11
 fn get_tile(U cell) U
     ct U[10] res = U[10]($00, $68, $6A, $8E, $60, $62, $66, $64, $6C, $6E)
     U tile = $FF
@@ -81,35 +84,54 @@ fn generate_map()
             y = $00 //Empty
         map[i] = y
 
-        // also place:
+        // TODO: also place:
         // artefacts
         // final boss
         // stairs
         // lamp
 
-fn load_level()
-    ppu_reset_addr($2000)
+fn render_floor()
+    U offset = U(player_z * 36)
+    UU addr = $2000
+    //Iterate by rows
+    for U i = 0; i < 6; i += 1
+        //Draw the top half
+        ppu_reset_addr(addr)
+        for U j = 0; j < 6; j += 1
+            U tile_id = get_tile(map[offset + j])
+            {PPUDATA}(tile_id)
+            {PPUDATA}(tile_id + 1)
+        addr += $20
+        //Draw the bottom half
+        ppu_reset_addr(addr)
+        for U j = 0; j < 6; j += 1
+            U tile_id = get_tile(map[offset + j])     
+            {PPUDATA}(tile_id + $10)
+            {PPUDATA}(tile_id + $11)
+        addr += $20
+        offset += 6
 
-    // Upload 1024 bytes; all ones.
-    for UU i = 0; i < 1024; i += 1
-        {PPUDATA}(i.a)
-        {PPUDATA}(i.b)
+    // for UU i = 0; i < 1024; i += 1
+    //     {PPUDATA}(U(i))
+    ppu_reset_addr($23C0)
+    for U i = 0; i < 64; i += 1
+        {PPUDATA}(%01101001)
 
-mode main()
+mode main() 
     // Set the palette:
     palette = game_palette
     ppu_upload_palette()
 
+    generate_map()
     player_x = 2 //randb(6)
     player_y = 2 //randb(6)
     player_z = 2 //randb(6)
-    load_level()
+    render_floor()
 
     // Turn on rendering:
     {PPUMASK}(PPUMASK_BG_ON | PPUMASK_NO_CLIP)
 
     while true
 
-// Define the tileset (commonly called CHR):
 chrrom
     file(fmt, "assets/tileset.chr")
