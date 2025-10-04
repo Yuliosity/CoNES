@@ -92,24 +92,34 @@ fn generate_map()
 
 fn render_floor()
     U offset = U(player_z * 36)
-    UU addr = $2000
+    UU row_addr = $2063
     //Iterate by rows
     for U i = 0; i < 6; i += 1
-        //Draw the top half
-        ppu_reset_addr(addr)
+        UU addr = row_addr
         for U j = 0; j < 6; j += 1
             U tile_id = get_tile(map[offset + j])
+            if tile_id == 0 //Empty tile
+                //Draw the top half
+                ppu_reset_addr(addr)
+                {PPUDATA}(0)
+                {PPUDATA}(0)
+                //Draw the bottom half
+                ppu_reset_addr(addr + $20)
+                {PPUDATA}(0)
+                {PPUDATA}(0)
+            else
+                //Draw the top half
+                ppu_reset_addr(addr)
             {PPUDATA}(tile_id)
             {PPUDATA}(tile_id + 1)
-        addr += $20
         //Draw the bottom half
-        ppu_reset_addr(addr)
-        for U j = 0; j < 6; j += 1
-            U tile_id = get_tile(map[offset + j])     
+                ppu_reset_addr(addr + $20)
             {PPUDATA}(tile_id + $10)
             {PPUDATA}(tile_id + $11)
-        addr += $20
+            //TODO: set attributes
+            addr += 3
         offset += 6
+        row_addr += $60
 
     // for UU i = 0; i < 1024; i += 1
     //     {PPUDATA}(U(i))
