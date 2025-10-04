@@ -12,6 +12,8 @@ ct U[25] game_palette = U[25](
     // Background color
     $0f)
 
+ct U LEFT_BORDER = 24
+ct U TOP_BORDER = 24
 vars /level
     U[216] map
 
@@ -19,7 +21,7 @@ vars /player
     U player_x = 2
     U player_y = 2
     U player_z = 2
-    U player_hp = 10
+    //U player_hp = 10
 
 //Gethe the NW tile of a cell.         
 //They are organized in 2x2 metatiles, so the rest are:
@@ -58,8 +60,8 @@ fn generate_map()
     //    8 orb,        9 pool, 10-14 unused (different vendors?)
     //    15 - empty cell
     for U i = 0; i < 216; i += 1
-        U y
         U x = rand()
+        U y
         if x < $50
             y = $40 | (x & 8 << 3) | (x & 8) //Monster type x mod 8, with type-dependent HP
         else if x < $60
@@ -127,7 +129,59 @@ fn render_floor()
     for U i = 0; i < 64; i += 1
         {PPUDATA}(%01101001)
 
+fn inc_wrap(U val) U
+    val += 1
+    if val > 5
+        val = 0
+    return val
+
+fn dec_wrap(U val) U
+    if val == 0
+        val = 6
+    return val - 1
+
+fn set_player_x()
+    U scr_x = TOP_BORDER + U(player_x * 24)
+    set_oam_x(0, scr_x)
+    set_oam_x(4, scr_x + 8)
+    set_oam_x(8, scr_x)
+    set_oam_x(12, scr_x + 8)
+
+fn set_player_y()
+    U scr_y = LEFT_BORDER + U(player_y * 24)
+    set_oam_y(0, scr_y)
+    set_oam_y(4, scr_y)
+    set_oam_y(8, scr_y + 8)
+    set_oam_y(12, scr_y + 8)
+
+fn pads_level()
+    U pressed = pads[0].pressed
+    if pressed & BUTTON_UP
+        player_y = dec_wrap(player_y)
+        set_player_y()
+    else if pressed & BUTTON_DOWN
+        player_y = inc_wrap(player_y)
+        set_player_y()
+    if pressed & BUTTON_LEFT
+        player_x = dec_wrap(player_x)
+        set_player_x()
+    else if pressed & BUTTON_RIGHT
+        player_x = inc_wrap(player_x)
+        set_player_x()
+
+nmi main_nmi()
+    ppu_upload_oam_poll_pads(0)
+
+    {PPUMASK}(PPUMASK_ON | PPUMASK_NO_CLIP)
+
+
+fn set_oam_pa(I.oam index, U p, U a)
+: +inline
+    oam{OAM_P + UU(index)} = p
+    oam{OAM_A + UU(index)} = a
+
 mode main() 
+: nmi main_nmi
     // Set the palette:
     palette = game_palette
     ppu_upload_palette()
@@ -138,10 +192,28 @@ mode main()
     player_z = 2 //randb(6)
     render_floor()
 
-    // Turn on rendering:
-    {PPUMASK}(PPUMASK_BG_ON | PPUMASK_NO_CLIP)
+    //Set the player sprite
+    set_oam_pa(0, $E2, 0)
+    set_oam_pa(4, $E3, 0)
+    set_oam_pa(8, $F2, 0)
+    set_oam_pa(12, $F3, 0)
+    set_player_x()
+    set_player_y()
+
+    //Set sprites for room borders
+    U spr = 16
+    for U x = 16; x < 16 + 7 * 24; x += 24
+        for U y = 16; y < 16 + 7 * 24; y += 24
+            spr = push_oam(spr, x, y, $FB, 0)
+    hide_oam(spr)
+
+    ppu_reset_scroll(0, 0)
+    {PPUCTRL}(PPUCTRL_NMI_ON)
 
     while true
+        update_pads()
+        pads_level()
+        nmi
 
 chrrom
     file(fmt, "assets/tileset.chr")
