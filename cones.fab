@@ -1,5 +1,93 @@
+ct U[25] game_palette = U[25](
+    // Tiles
+    $0a, $12, $22,
+    $00, $16, $27,
+    $1c, $18, $29,
+    $00, $10, $15,
+    // Grid
+    $0c, $00, $00,
+    $0f, $0f, $0f,
+    $0f, $0f, $0f,
+    $0f, $0f, $0f,
+    // Background color
+    $0f)
+
+vars /level
+    U[216] map
+
+
+vars /player
+    U player_x = 2
+    U player_y = 2
+    U player_z = 2
+    U player_hp = 10
+
+fn get_tile(U cell) U
+    ct U[10] res = U[10]($00, $68, $6A, $8E, $60, $62, $66, $64, $6C, $6E)
+    U tile = $FF
+    //TODO: hidden cells
+    cell &= $7F
+    if cell < 10
+        tile = res[cell]
+    else if cell == $24 //Coin
+        tile = $86
+    else if cell == $28 //Flare
+        tile = $84
+    else if cell & $40 //Monster
+        tile = $A0 | (((cell >> 3) & $07) << 1)
+    return tile
+
+fn generate_map()
+    //76543210 - 8-bit format of the ConE map cell
+    //7 - visited (known) cell
+    //6 - is a monster
+    //if 6 set, 543 are monster's lower index; 210 are monster's current HP
+    //monster's upper index is current_floor mod 2, so full undex is 8*upper+lower
+    //if 6 not set:
+    //  5 - is a collectable item;
+    //  if 5 set, 4 - is an artefact
+    //  if 5 set and 4 set,     321 are: 0-4 gems, 5 goldsign, 6 bluefire; bit 0 is unused
+    //  if 5 set and 4 not set, 32 are: 0 gold, 1 flare, 2 lamp, 3 unused; 10 are unused
+    //  if 5 not set, it's an interactive object, and 4 is a final boss with 3210 extra HPs
+    //  if 5 not set and 4 not set, 3210 are:
+    //    0 empty cell, 1 chest,       2 book, 3 vendor
+    //    4 stairs up,  5 stairs down, 6 warp, 7 sinkhole
+    //    8 orb,        9 pool, 10-14 unused (different vendors?)
+    //    15 - empty cell
+    for U i = 0; i < 216; i += 1
+        U y
+        U x = rand()
+        if x < $50
+            y = $40 | (x & 8 << 3) | (x & 8) //Monster type x mod 8, with type-dependent HP
+        else if x < $60
+            y = $01 //Chest
+        else if x < $70
+            y = $02 //Book
+        else if x < $80
+            y = $24 //Coin
+        else if x < $90
+            y = $28 //Flare
+        else if x < $98
+            y = $03 //Vendor
+        else if x < $A0
+            y = $06 //Warp
+        else if x < $A8
+            y = $07 //Sinkhole
+        else if x < $B0
+            y = $08 //Orb
+        else if x < $B8
+            y = $09 //Pool
+        else
+            y = $00 //Empty
+        map[i] = y
+
+        // also place:
+        // artefacts
+        // final boss
+        // stairs
+        // lamp
+
 fn load_level()
-    // Tell the NES which VRAM address we want to upload to:
     ppu_reset_addr($2000)
 
     // Upload 1024 bytes; all ones.
@@ -9,10 +97,12 @@ fn load_level()
 
 mode main()
     // Set the palette:
-    palette = example_palette
+    palette = game_palette
     ppu_upload_palette()
 
-    // Load the background:
+    player_x = 2 //randb(6)
+    player_y = 2 //randb(6)
+    player_z = 2 //randb(6)
     load_level()
 
     // Turn on rendering:
