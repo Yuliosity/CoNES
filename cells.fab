@@ -1,0 +1,59 @@
+//76543210 - 8-bit format of the CoNE map cell
+//1xxxxxxx - visited (known) cell
+//v1iiihhh - is a monster, where iii is the monster upper index, hhh is its current HP
+//Monster's upper index is current_floor mod 2, so full undex is 8*upper+lower
+//v01xxxxx - an item:
+//  if 5 set, 4 - is an artefact //???
+//v011xxx_ - 0-4 gems, 5 goldsign, 6 bluefire
+//v010xx__ - 0 gold, 1 flare, 2 lamp, 3 unused
+//v010hhhh - final boss with hhhh extra HP
+//v000iiii - interactive object:
+//    0 empty cell, 1 chest,       2 book, 3 vendor
+//    4 stairs up,  5 stairs down, 6 warp, 7 sinkhole
+//    8 orb,        9 pool, 10-14 unused (different vendors?)
+//    15 - empty cell
+
+//Cell type constants
+ct U CHEST = $01
+ct U BOOK = $02
+ct U VENDOR = $03
+ct U STAIRS_UP = $04
+ct U STAIRS_DOWN = $05
+ct U WARP = $06
+ct U SINKHOLE = $07
+ct U ORB = $08
+ct U POOL = $09
+ct U COIN = $24
+ct U FLARE = $28
+
+//Get the the NW tile of a cell.         
+//They are organized in 2x2 metatiles, so the rest are:
+//      x NW NE x + 1
+//x + $10 SW SE x + $11
+ct fn cell_tile() U[128]
+    U[128] res
+    res[CHEST] = $68
+    res[BOOK] = $6A
+    res[VENDOR] = $8E
+    res[STAIRS_UP] = $60
+    res[STAIRS_DOWN] = $62
+    res[WARP] = $66
+    res[SINKHOLE] = $64
+    res[ORB] = $6C
+    res[POOL] = $6E
+    res[COIN] = $86
+    res[FLARE] = $84
+    for U i = $40; i < $80; i += 1 //Monsters
+        res[i] = $A0 | (((i >> 3) & $07) << 1)
+    return res
+
+//Floor offsets in the map
+ct fn floor_offset() U[6]
+    U[6] res
+    for U i = 0; i < 6; i += 1
+        res[i] = U(i * 36)
+    return res
+
+//Get the palette index for a cell
+// fn get_palette(U cell) U
+//     ct U[10] res = U[10]()

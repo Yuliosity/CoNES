@@ -26,8 +26,15 @@ fn load_nametable(CCC/bkg nametable)
     for UU i = 0; i < 1024; i += 1
         {PPUDATA}(nametable{i})
 
+ct U ACT_NOTHING = 0
+ct U ACT_DRAW_CELL = 1
+ct U ACT_DRAW_FLOOR = 2
+
 vars /level
     U[216] map
+    Bool visible_debug = false
+    U action = 0
+    U to_redraw = 0
 
 vars /player
     U player_x = 2
@@ -35,51 +42,8 @@ vars /player
     U player_z = 2
     //U player_hp = 10
 
-//Cell type constants
-ct U CHEST = $01
-ct U BOOK = $02
-ct U VENDOR = $03
-ct U WARP = $06
-ct U SINKHOLE = $07
-ct U ORB = $08
-ct U POOL = $09
-ct U COIN = $24
-ct U FLARE = $28
-//Gethe the NW tile of a cell.         
-//They are organized in 2x2 metatiles, so the rest are:
-//      x NW NE x + 1
-//x + $10 SW SE x + $11
-fn get_tile(U cell) U
-    ct U[10] res = U[10]($00, $68, $6A, $8E, $60, $62, $66, $64, $6C, $6E)
-    U tile = $FF
-    //TODO: hidden cells
-    cell &= $7F
-    if cell < 10
-        tile = res[cell]
-    else if cell == COIN
-        tile = $86
-    else if cell == FLARE
-        tile = $84
-    else if cell & $40 //Monster
-        tile = $A0 | (((cell >> 3) & $07) << 1)
-    return tile
-
 fn generate_map()
-    //76543210 - 8-bit format of the CoNE map cell
-    //1xxxxxxx - visited (known) cell
-    //v1iiihhh - is a monster, where iii is the monster upper index, hhh is its current HP
-    //Monster's upper index is current_floor mod 2, so full undex is 8*upper+lower
-    //v01xxxxx - an item:
-    //  if 5 set, 4 - is an artefact //???
-    //v011xxx_ - 0-4 gems, 5 goldsign, 6 bluefire
-    //v010xx__ - 0 gold, 1 flare, 2 lamp, 3 unused
-    //v010hhhh - final boss with hhhh extra HP
-    //v000iiii - interactive object:
-    //    0 empty cell, 1 chest,       2 book, 3 vendor
-    //    4 stairs up,  5 stairs down, 6 warp, 7 sinkhole
-    //    8 orb,        9 pool, 10-14 unused (different vendors?)
-    //    15 - empty cell
-    for U i = 0; i < 216; i += 1
+        for U i = 0; i < 216; i += 1
         U x = rand()
         U y
         if x < $50
@@ -112,10 +76,13 @@ fn generate_map()
         // stairs
         // lamp
 
-//Return the OAM address for a given tile
-fn calc_addr(U x, U y) UU
-: +inline
-    return $2000 + UU($20 * (TOP_TILE + U(3 * y))) + UU(LEFT_TILE + U(3 * x))
+//OAM addresses for cells of a floor
+ct fn cell_addr() UU[36]
+    UU[36] res
+    for U y = 0; y < 6; y += 1
+        for U x = 0; x < 6; x += 1
+            res[U(y * 6) + x] = $2000 + UU($20 * (TOP_TILE + U(3 * y))) + UU(LEFT_TILE + U(3 * x))
+return res
 
 fn render_cell(UU addr, U tile)
 : +inline
@@ -141,31 +108,40 @@ fn render_cell(UU addr, U tile)
             //TODO: set attributes
 
 fn show_current_cell()
-    UU addr = calc_addr(player_x, player_y)
-    U i = U(player_z * 36) + U(player_y * 6) + player_x
+        U i = U(player_y * 6) + player_x
+UU addr = cell_addr()[i]
+    i += U(player_z * 36)
     map[i] |= $80
-    render_cell(addr, get_tile(map[i]))
+    render_cell(addr, cell_tile()[map[i] & $7F])
 
 fn render_floor()
-    I.map cell = I.map(player_z * 36)
-    //UU row_addr = $2000
-    UU row_addr = calc_addr(0, 0)
-    //Iterate by rows
-    for U y = 0; y < 6; y += 1
-        //UU addr = row_addr
-        for U x = 0; x < 6; x += 1
-            UU addr = calc_addr(x, y)
-            if (cell[x] & $80 || visible_debug)
-                render_cell(addr, get_tile(cell[x]))
+    I.map cell = I.map(floor_offset()[player_z])
+    UU row_addr = cell_addr()[0]
+    if visible_debug
+    for U i = 0; i < 6; i += 1
+        to_redraw -= 1
+            render_cell(cell_addr()[to_redraw], cell_tile()[cell[to_redraw] & $7F])
+    else
+        for U i = 0; i < 6; i += 1
+            to_redraw -= 1
+            if (cell[to_redraw] & $80)
+                render_cell(cell_addr()[to_redraw], cell_tile()[cell[to_redraw] & $7F])
             else //Hidden cell
-                render_cell(addr, $8A) 
-            addr += 3
-        cell += 6
-        row_addr += $60
+                render_cell(cell_addr()[to_redraw], $8A)
+    if !to_redraw
+        action = ACT_NOTHING
     //TODO: set attributes
     ppu_reset_addr($23C0)
     for U i = 0; i < 64; i += 1
         {PPUDATA}(%01101001)
+
+fn redraw()
+: +inline
+    {PPUSTATUS}()
+    if action == ACT_DRAW_CELL
+        show_current_cell()
+    else if action == ACT_DRAW_FLOOR
+        render_floor()
 
 fn inc_wrap(U val) U
     val += 1
@@ -192,27 +168,54 @@ fn set_player_y()
     set_oam_y(8, scr_y + 8)
     set_oam_y(12, scr_y + 8)
 
+fn set_visible()
+: +inline
+    U i = U(player_z * 36) + U(player_y * 6) + player_x
+    map[i] |= $80
+
+fn queue_draw_floor()
+: +inline
+    action = ACT_DRAW_FLOOR
+    to_redraw = 36
+
 fn pads_level()
     U pressed = pads[0].pressed
     if pressed & BUTTON_UP
+//Debug: move between floors
+        if pads[0].held & BUTTON_SELECT
+            player_z = dec_wrap(player_z)
+            queue_draw_floor()
+        else
         player_y = dec_wrap(player_y)
         set_player_y()
-        show_current_cell()
+        action = ACT_DRAW_CELL
     else if pressed & BUTTON_DOWN
+//Debug: move between floors
+        if pads[0].held & BUTTON_SELECT
+            player_z = inc_wrap(player_z)
+            queue_draw_floor()
+        else
         player_y = inc_wrap(player_y)
         set_player_y()
-        show_current_cell()
+        action = ACT_DRAW_CELL
     if pressed & BUTTON_LEFT
         player_x = dec_wrap(player_x)
         set_player_x()
-        show_current_cell()
+        action = ACT_DRAW_CELL
     else if pressed & BUTTON_RIGHT
         player_x = inc_wrap(player_x)
         set_player_x()
-        show_current_cell()
+action = ACT_DRAW_CELL
+    //DEBUG: show/hide cells
+    if pressed & BUTTON_A && pads[0].held & BUTTON_SELECT
+        visible_debug = !visible_debug
+        queue_draw_floor()
 
 nmi main_nmi()
+redraw()
     ppu_upload_oam_poll_pads(0)
+ppu_reset_scroll(0, 0)
+    {PPUSTATUS}()
     {PPUMASK}(PPUMASK_ON | PPUMASK_NO_CLIP)
 
 fn set_oam_pa(I.oam index, U p, U a)
@@ -222,14 +225,18 @@ fn set_oam_pa(I.oam index, U p, U a)
 
 mode main() 
 : nmi main_nmi
+{PPUCTRL}(0)
+    {PPUMASK}(0)
     // Set the palette:
     palette = game_palette
     ppu_upload_palette()
 
+//load_nametable(@level_bkg)
     generate_map()
-    player_x = 2 //randb(6)
-    player_y = 2 //randb(6)
-    player_z = 2 //randb(6)
+    player_x = randb(6)
+    player_y = randb(6)
+    player_z = randb(6)
+queue_draw_floor()
     render_floor()
 
     //Set the player sprite
@@ -247,8 +254,7 @@ mode main()
             spr = push_oam(spr, x, y, $FB, 0)
     hide_oam(spr)
 
-    ppu_reset_scroll(0, 0)
-    {PPUCTRL}(PPUCTRL_NMI_ON)
+        {PPUCTRL}(PPUCTRL_NMI_ON)
 
     while true
         update_pads()
