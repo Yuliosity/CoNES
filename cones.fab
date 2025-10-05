@@ -23,6 +23,16 @@ vars /player
     U player_z = 2
     //U player_hp = 10
 
+//Cell type constants
+ct U CHEST = $01
+ct U BOOK = $02
+ct U VENDOR = $03
+ct U WARP = $06
+ct U SINKHOLE = $07
+ct U ORB = $08
+ct U POOL = $09
+ct U COIN = $24
+ct U FLARE = $28
 //Gethe the NW tile of a cell.         
 //They are organized in 2x2 metatiles, so the rest are:
 //      x NW NE x + 1
@@ -34,27 +44,25 @@ fn get_tile(U cell) U
     cell &= $7F
     if cell < 10
         tile = res[cell]
-    else if cell == $24 //Coin
+    else if cell == COIN
         tile = $86
-    else if cell == $28 //Flare
+    else if cell == FLARE
         tile = $84
     else if cell & $40 //Monster
         tile = $A0 | (((cell >> 3) & $07) << 1)
     return tile
 
 fn generate_map()
-    //76543210 - 8-bit format of the ConE map cell
-    //7 - visited (known) cell
-    //6 - is a monster
-    //if 6 set, 543 are monster's lower index; 210 are monster's current HP
-    //monster's upper index is current_floor mod 2, so full undex is 8*upper+lower
-    //if 6 not set:
-    //  5 - is a collectable item;
-    //  if 5 set, 4 - is an artefact
-    //  if 5 set and 4 set,     321 are: 0-4 gems, 5 goldsign, 6 bluefire; bit 0 is unused
-    //  if 5 set and 4 not set, 32 are: 0 gold, 1 flare, 2 lamp, 3 unused; 10 are unused
-    //  if 5 not set, it's an interactive object, and 4 is a final boss with 3210 extra HPs
-    //  if 5 not set and 4 not set, 3210 are:
+    //76543210 - 8-bit format of the CoNE map cell
+    //1xxxxxxx - visited (known) cell
+    //v1iiihhh - is a monster, where iii is the monster upper index, hhh is its current HP
+    //Monster's upper index is current_floor mod 2, so full undex is 8*upper+lower
+    //v01xxxxx - an item:
+    //  if 5 set, 4 - is an artefact //???
+    //v011xxx_ - 0-4 gems, 5 goldsign, 6 bluefire
+    //v010xx__ - 0 gold, 1 flare, 2 lamp, 3 unused
+    //v010hhhh - final boss with hhhh extra HP
+    //v000iiii - interactive object:
     //    0 empty cell, 1 chest,       2 book, 3 vendor
     //    4 stairs up,  5 stairs down, 6 warp, 7 sinkhole
     //    8 orb,        9 pool, 10-14 unused (different vendors?)
@@ -65,23 +73,23 @@ fn generate_map()
         if x < $50
             y = $40 | (x & 8 << 3) | (x & 8) //Monster type x mod 8, with type-dependent HP
         else if x < $60
-            y = $01 //Chest
+            y = CHEST
         else if x < $70
-            y = $02 //Book
+            y = BOOK
         else if x < $80
-            y = $24 //Coin
+            y = COIN
         else if x < $90
-            y = $28 //Flare
+            y = FLARE
         else if x < $98
-            y = $03 //Vendor
+            y = VENDOR
         else if x < $A0
-            y = $06 //Warp
+            y = WARP
         else if x < $A8
-            y = $07 //Sinkhole
+            y = SINKHOLE
         else if x < $B0
-            y = $08 //Orb
+            y = ORB
         else if x < $B8
-            y = $09 //Pool
+            y = POOL
         else
             y = $00 //Empty
         map[i] = y
