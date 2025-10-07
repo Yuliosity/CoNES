@@ -32,17 +32,17 @@ ct U FLARE = $28
 //x + $10 SW SE x + $11
 ct fn cell_tile() U[128]
     U[128] res
-    res[CHEST] = $68
-    res[BOOK] = $6A
-    res[VENDOR] = $8E
-    res[STAIRS_UP] = $60
-    res[STAIRS_DOWN] = $62
-    res[WARP] = $66
-    res[SINKHOLE] = $64
-    res[ORB] = $6C
-    res[POOL] = $6E
-    res[COIN] = $86
-    res[FLARE] = $84
+    res[COIN] = $6C
+    res[FLARE] = $6E
+    res[STAIRS_DOWN] = $80
+    res[STAIRS_UP] = $82
+    res[BOOK] = $86
+    res[CHEST] = $84
+    res[SINKHOLE] = $88
+    res[POOL] = $8A
+    res[WARP] = $8C
+    res[ORB] = $8E
+    res[VENDOR] = $EE
     for U i = $40; i < $80; i += 1 //Monsters
         res[i] = $A0 | (((i >> 3) & $07) << 1)
     return res
